@@ -5,7 +5,7 @@ use std::io::Write;
 #[cfg(target_os = "linux")]
 use memfd;
 #[cfg(target_os = "linux")]
-use rustix::fd::{AsFd, AsRawFd, BorrowedFd};
+use rustix::fd::{AsFd, BorrowedFd};
 #[cfg(target_os = "linux")]
 use rustix::io::IoSlice;
 #[cfg(target_os = "linux")]
@@ -144,40 +144,30 @@ fn send_large_payload(
     // Write payload to memfd
     mfd.as_file().write_all(payload)?;
 
-    // Get raw fd for sending
-    let fd = mfd.as_file().as_raw_fd();
-
     // Seal the memfd to prevent further modifications
     mfd.add_seals(&[memfd::FileSeal::SealShrink, memfd::FileSeal::SealGrow])
         .map_err(|e| std::io::Error::other(format!("memfd seal: {}", e)))?;
 
     // Send the file descriptor
-    send_fd(socket, fd)
+    send_fd(socket, &mfd)
 }
 
 #[cfg(target_os = "linux")]
-fn send_fd(socket: BorrowedFd<'_>, fd: std::os::unix::io::RawFd) -> std::io::Result<()> {
+fn send_fd(socket: BorrowedFd<'_>, mfd: &memfd::Memfd) -> std::io::Result<()> {
     use rustix::net::{sendmsg, SendAncillaryBuffer, SendAncillaryMessage, SendFlags};
     use std::mem::MaybeUninit;
 
-    // Prepare the message with a single null byte
     let dummy = [0u8; 1];
     let iov = IoSlice::new(&dummy);
 
-    // Build ancillary message with file descriptor
-    // SAFETY: The memfd stays open until we return from this function
-    let borrowed = unsafe { std::os::unix::io::BorrowedFd::borrow_raw(fd) };
-    let msg = SendAncillaryMessage::ScmRights(&[borrowed]);
+    let msg = SendAncillaryMessage::ScmRights(&[mfd.as_file().as_fd()]);
     let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
     let mut cmsg_buffer = SendAncillaryBuffer::new(space.as_mut_slice());
     if !cmsg_buffer.push(msg) {
         return Err(std::io::Error::other("failed to push cmsg"));
     }
 
-    // Send the file descriptor
-    sendmsg(socket, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(|e| {
-        std::io::Error::from(e)
-    })?;
+    sendmsg(socket, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(std::io::Error::from)?;
 
     Ok(())
 }

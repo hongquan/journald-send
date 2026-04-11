@@ -1,11 +1,12 @@
-# journald-send
+# 📜 journald-send
 
-A lightweight Python library to send messages to [journald] using its native protocol.
+A lightweight Python library to send messages to [journald] (Linux system logging) using its native protocol.
 
 ## Features
 
-- No dependencies on [systemd] or libsystemd.
 - Simple function to log messages directly to [journald].
+- No dependencies on [systemd] or C-based `libsystemd`.
+- Pure-Rust (not depending on [libc], although PyO3 may include it when linking with CPython).
 
 ## Installation
 
@@ -73,3 +74,4 @@ just docs
 [journald]: https://www.freedesktop.org/wiki/Software/systemd/journal-files/
 [systemd]: https://systemd.io/
 [uv]: https://github.com/astral-sh/uv
+[libc]: https://docs.rs/libc

@@ -119,10 +119,12 @@ jobs:
           python-version: "3.14"
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+      - name: Install docs dependencies
+        run: uv sync --group docs
       - name: Build and install package
         run: uv run maturin develop
       - name: Build documentation
-        run: uv run sphinx-build -b html docs docs/_build
+        run: sphinx-build -b html docs docs/_build
 
   release:
     name: Release

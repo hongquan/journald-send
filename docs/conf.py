@@ -1,16 +1,10 @@
 # Configuration file for the Sphinx documentation builder.
 
-import os
-import sys
-
-
-sys.path.insert(0, os.path.abspath('..'))
-
 # -- Project information -----------------------------------------------------
 
 project = 'journald-send'
-copyright = '2026, journald-send contributors'
-author = 'journald-send contributors'
+copyright = '2026, Nguyễn Hồng Quân'
+author = 'Nguyễn Hồng Quân <ng.hong.quan@gmail.com>'
 release = '0.1.0'
 
 # -- General configuration ---------------------------------------------------
