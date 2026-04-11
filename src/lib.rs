@@ -213,7 +213,7 @@ fn send_large_payload(socket: &UnixDatagram, payload: &[u8]) -> std::io::Result<
                 msg_iov: &mut iov,
                 msg_iovlen: 1,
                 msg_control: &mut cmsg_space as *mut _ as *mut _,
-                msg_controllen: std::mem::size_of::<libc::cmsghdr>(),
+                msg_controllen: std::mem::size_of::<libc::cmsghdr>() as libc::socklen_t,
                 msg_flags: 0,
             };
 
