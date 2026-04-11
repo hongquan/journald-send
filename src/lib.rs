@@ -3,7 +3,13 @@ use pyo3::types::PyDict;
 use std::io::Write;
 
 #[cfg(target_os = "linux")]
-use std::os::unix::net::UnixDatagram;
+use memfd;
+#[cfg(target_os = "linux")]
+use rustix::fd::{AsFd, AsRawFd, BorrowedFd};
+#[cfg(target_os = "linux")]
+use rustix::io::IoSlice;
+#[cfg(target_os = "linux")]
+use rustix::net;
 
 #[cfg(target_os = "linux")]
 const JOURNALD_PATH: &str = "/run/systemd/journal/socket";
@@ -42,7 +48,7 @@ fn send(
     };
 
     py.detach(|| {
-        send_to_journald_raw(
+        send_to_journald(
             &message,
             message_id.as_deref(),
             code_file.as_deref(),
@@ -77,7 +83,7 @@ fn send(
 }
 
 #[cfg(target_os = "linux")]
-fn send_to_journald_raw(
+fn send_to_journald(
     message: &str,
     message_id: Option<&str>,
     code_file: Option<&str>,
@@ -85,8 +91,8 @@ fn send_to_journald_raw(
     code_func: Option<&str>,
     extra_fields: &[(String, String)],
 ) -> std::io::Result<()> {
-    let socket = UnixDatagram::unbound()?;
-
+    let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
+    let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
     let mut buf = Vec::with_capacity(512);
 
     // Add MESSAGE field (safe - message doesn't contain newlines)
@@ -94,22 +100,18 @@ fn send_to_journald_raw(
 
     // Add optional standard fields
     if let Some(mid) = message_id {
-        // Safe - message IDs don't contain newlines
         put_field_wellformed(&mut buf, "MESSAGE_ID", mid.as_bytes());
     }
 
     if let Some(file) = code_file {
-        // Safe - file paths don't contain newlines
         put_field_wellformed(&mut buf, "CODE_FILE", file.as_bytes());
     }
 
     if let Some(line) = code_line {
-        // Safe - line numbers don't contain newlines
         put_field_wellformed(&mut buf, "CODE_LINE", line.to_string().as_bytes());
     }
 
     if let Some(func) = code_func {
-        // Safe - function names don't contain newlines
         put_field_wellformed(&mut buf, "CODE_FUNC", func.as_bytes());
     }
 
@@ -121,130 +123,63 @@ fn send_to_journald_raw(
     }
 
     // Send the payload
-    socket.send_to(&buf, JOURNALD_PATH).or_else(|error| {
-        if Some(libc::EMSGSIZE) == error.raw_os_error() {
-            send_large_payload(&socket, &buf)
-        } else {
-            Err(error)
+    match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
+        Ok(_n) => Ok(()),
+        Err(rustix::io::Errno::MSGSIZE) => {
+            send_large_payload(socket.as_fd(), &buf)
         }
-    })?;
-
-    Ok(())
+        Err(e) => Err(std::io::Error::from(e)),
+    }
 }
 
 #[cfg(target_os = "linux")]
-fn send_large_payload(socket: &UnixDatagram, payload: &[u8]) -> std::io::Result<usize> {
-    use std::os::unix::prelude::AsRawFd;
+fn send_large_payload(
+    socket: BorrowedFd<'_>,
+    payload: &[u8],
+) -> std::io::Result<()> {
+    // Create a sealable memfd
+    let opts = memfd::MemfdOptions::default().allow_sealing(true);
+    let mfd = opts.create("journald-send").map_err(|e| std::io::Error::other(format!("memfd: {}", e)))?;
 
-    // Create a temporary memfd module inline for large payload support
-    mod memfd {
-        use std::fs::File;
-        use std::io;
-        use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+    // Write payload to memfd
+    mfd.as_file().write_all(payload)?;
 
-        pub struct MemFd(File);
+    // Get raw fd for sending
+    let fd = mfd.as_file().as_raw_fd();
 
-        pub fn create_sealable() -> io::Result<MemFd> {
-            let name = std::ffi::CString::new("journald-send").unwrap();
-            let fd = unsafe { libc::memfd_create(name.as_ptr(), 0) };
-            if fd < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(MemFd(unsafe { File::from_raw_fd(fd) }))
-        }
+    // Seal the memfd to prevent further modifications
+    mfd.add_seals(&[memfd::FileSeal::SealShrink, memfd::FileSeal::SealGrow])
+        .map_err(|e| std::io::Error::other(format!("memfd seal: {}", e)))?;
 
-        pub fn seal_fully(fd: RawFd) -> io::Result<()> {
-            let seals =
-                libc::F_SEAL_SHRINK | libc::F_SEAL_GROW | libc::F_SEAL_WRITE | libc::F_SEAL_SEAL;
-            let ret = unsafe { libc::fcntl(fd, libc::F_ADD_SEALS, seals) };
-            if ret < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(())
-        }
+    // Send the file descriptor
+    send_fd(socket, fd)
+}
 
-        impl AsRawFd for MemFd {
-            fn as_raw_fd(&self) -> RawFd {
-                self.0.as_raw_fd()
-            }
-        }
+#[cfg(target_os = "linux")]
+fn send_fd(socket: BorrowedFd<'_>, fd: std::os::unix::io::RawFd) -> std::io::Result<()> {
+    use rustix::net::{sendmsg, SendAncillaryBuffer, SendAncillaryMessage, SendFlags};
+    use std::mem::MaybeUninit;
 
-        impl std::io::Write for MemFd {
-            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-                self.0.write(buf)
-            }
+    // Prepare the message with a single null byte
+    let dummy = [0u8; 1];
+    let iov = IoSlice::new(&dummy);
 
-            fn flush(&mut self) -> std::io::Result<()> {
-                self.0.flush()
-            }
-        }
+    // Build ancillary message with file descriptor
+    // SAFETY: The memfd stays open until we return from this function
+    let borrowed = unsafe { std::os::unix::io::BorrowedFd::borrow_raw(fd) };
+    let msg = SendAncillaryMessage::ScmRights(&[borrowed]);
+    let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
+    let mut cmsg_buffer = SendAncillaryBuffer::new(space.as_mut_slice());
+    if !cmsg_buffer.push(msg) {
+        return Err(std::io::Error::other("failed to push cmsg"));
     }
 
-    mod socket {
-        use std::io;
-        use std::os::unix::net::UnixDatagram;
-        use std::os::unix::prelude::AsRawFd;
+    // Send the file descriptor
+    sendmsg(socket, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(|e| {
+        std::io::Error::from(e)
+    })?;
 
-        pub fn send_one_fd_to(socket: &UnixDatagram, fd: i32, path: &str) -> io::Result<usize> {
-            let mut cmsg_space: libc::cmsghdr = unsafe { std::mem::zeroed() };
-
-            let dummy_data: [u8; 1] = [0];
-            let mut iov = libc::iovec {
-                iov_base: dummy_data.as_ptr() as *mut _,
-                iov_len: dummy_data.len(),
-            };
-
-            let unix_addr = libc::sockaddr_un {
-                sun_family: libc::AF_UNIX as libc::sa_family_t,
-                sun_path: {
-                    let mut path_buf = [0 as libc::c_char; 108];
-                    let path_bytes = path.as_bytes();
-                    let copy_len = path_bytes.len().min(107);
-                    for (i, &b) in path_bytes[..copy_len].iter().enumerate() {
-                        path_buf[i] = b as libc::c_char;
-                    }
-                    path_buf
-                },
-            };
-
-            let msg = libc::msghdr {
-                msg_name: &unix_addr as *const _ as *mut _,
-                msg_namelen: std::mem::size_of::<libc::sockaddr_un>() as libc::socklen_t,
-                msg_iov: &mut iov,
-                msg_iovlen: 1,
-                msg_control: &mut cmsg_space as *mut _ as *mut _,
-                msg_controllen: std::mem::size_of::<libc::cmsghdr>() as libc::socklen_t,
-                msg_flags: 0,
-            };
-
-            let cmsg = unsafe { libc::CMSG_FIRSTHDR(&msg) };
-            if cmsg.is_null() {
-                return Err(io::Error::new(io::ErrorKind::Other, "CMSG_FIRSTHDR failed"));
-            }
-
-            unsafe {
-                (*cmsg).cmsg_level = libc::SOL_SOCKET;
-                (*cmsg).cmsg_type = libc::SCM_RIGHTS;
-                (*cmsg).cmsg_len =
-                    libc::CMSG_LEN(std::mem::size_of::<i32>() as u32) as libc::size_t;
-                let payload = libc::CMSG_DATA(cmsg) as *mut i32;
-                *payload = fd;
-            }
-
-            let ret = unsafe { libc::sendmsg(socket.as_raw_fd(), &msg, 0) };
-            if ret < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(ret as usize)
-        }
-    }
-
-    // Write the whole payload to a memfd
-    let mut mem = memfd::create_sealable()?;
-    mem.write_all(payload)?;
-    // Fully seal the memfd to signal journald that its backing data won't resize anymore
-    memfd::seal_fully(mem.as_raw_fd())?;
-    socket::send_one_fd_to(socket, mem.as_raw_fd(), JOURNALD_PATH)
+    Ok(())
 }
 
 /// Mangle a name into journald-compliant form.
