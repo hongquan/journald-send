@@ -33,7 +33,7 @@ journald_send.send("Hello, journald!")
 
 ## Examples
 
-See more in the documentation.
+See examples in the [examples folder](examples/).
 
 ## Contributing
 
