@@ -197,11 +197,11 @@ fn send_large_payload(socket: &UnixDatagram, payload: &[u8]) -> std::io::Result<
             let unix_addr = libc::sockaddr_un {
                 sun_family: libc::AF_UNIX as libc::sa_family_t,
                 sun_path: {
-                    let mut path_buf = [0i8; 108];
+                    let mut path_buf = [0 as libc::c_char; 108];
                     let path_bytes = path.as_bytes();
                     let copy_len = path_bytes.len().min(107);
                     for (i, &b) in path_bytes[..copy_len].iter().enumerate() {
-                        path_buf[i] = b as i8;
+                        path_buf[i] = b as libc::c_char;
                     }
                     path_buf
                 },

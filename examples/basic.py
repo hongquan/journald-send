@@ -2,4 +2,4 @@
 
 import journald_send
 
-journald_send.send("Hello, journald!")
+journald_send.send('Hello, journald!')
