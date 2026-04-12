@@ -118,7 +118,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v8.0.0
       - name: Install dependencies
         run: uv sync --group lint
       - name: Lint with Ruff
@@ -138,7 +138,7 @@ jobs:
           name: wheels-linux-x86_64-3.14
           path: dist
       - name: Install uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v8.0.0
       - name: Install test dependencies
         run: uv sync --group test
       - name: Install wheel
@@ -155,7 +155,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v8.0.0
       - name: Download x86_64 Python 3.14 wheel
         uses: actions/download-artifact@v7
         with:
@@ -176,7 +176,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v8.0.0
       - name: Install docs dependencies
         run: uv sync --group docs
       - name: Build and install package
