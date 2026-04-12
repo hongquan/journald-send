@@ -212,16 +212,31 @@ def test_large_payload():
     a message that exceeds the Unix datagram size limit, forcing the fallback
     to memfd-based transmission.
     """
-    poem = """
-    Cỏ non xanh rợn chân trời
-    Cành lê trắng điểm một vài bông hoa
-    Dưới trăng quyên đã gọi hè
-    Đầu tường lửa lựu lập loè đâm bông
-    Long lanh đáy nước in trời
-    Thành xây khói biếc non phơi bóng vàng
-    Sen tàn cúc lại nở hoa
-    Sầu dài ngày ngắn đông đà sang xuân
-    """ * 350
+    out = subprocess.check_output(['sysctl', 'net.core.rmem_max'], text=True, timeout=1)
+    # Expected format: 'net.core.rmem_max = 212992\n'
+    parts = out.split('=', 1)
+    if len(parts) > 1:
+        rmem_max = int(parts[1].strip())
+    else:
+        rmem_max = int(out.strip())
+
+    base = (
+        "Cỏ non xanh rợn chân trời\n"
+        "Cành lê trắng điểm một vài bông hoa.\n"
+        "...\n"
+        "Dưới trăng quyên đã gọi hè\n"
+        "Đầu tường lửa lựu lập loè đâm bông.\n"
+        "...\n"
+        "Long lanh đáy nước in trời\n"
+        "Thành xây khói biếc non phơi bóng vàng.\n"
+        "...\n"
+        "Sen tàn cúc lại nở hoa\n"
+        "Sầu dài ngày ngắn đông đà sang xuân\n"
+    )
+
+    # Make payload exceed the guessed limit
+    repeat = (rmem_max // max(1, len(base))) + 2
+    poem = base * repeat
     journald_send.send(poem)
 
 

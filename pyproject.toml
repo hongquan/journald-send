@@ -1,5 +1,6 @@
 [project]
 name = "journald-send"
+description = "A thin library to send messages to journald using its native protocol."
 authors = [
     { name = "Nguyễn Hồng Quân", email = "ng.hong.quan@gmail.com" }
 ]
@@ -7,7 +8,12 @@ license = "Apache-2.0"
 requires-python = ">=3.12"
 readme = "README.md"
 classifiers = [
+    "Intended Audience :: Developers",
     "Programming Language :: Rust",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Operating System :: POSIX :: Linux",
     "Typing :: Typed",
@@ -18,6 +24,7 @@ dynamic = ["version"]
 Homepage = "https://github.com/hongquan/journald-send"
 Documentation = "https://journald-send.readthedocs.io"
 Repository = "https://github.com/hongquan/journald-send"
+Changelog = "https://github.com/hongquan/journald-send/blob/main/CHANGELOG.md"
 
 
 [build-system]
@@ -29,7 +36,7 @@ dev = [
     "maturin>=1.13.1",
 ]
 docs = [
-    "sphinx>=8.0",
+    "sphinx>=9.1.0",
     "furo",
     "sphinx-autobuild",
     "myst-parser>=5.0.0",

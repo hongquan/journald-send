@@ -1,5 +1,11 @@
 # 📜 journald-send
 
+![made-in-vietnam](https://madewithlove.vercel.app/vn?heart=true&colorA=%23ffcd00&colorB=%23da251d)
+[![journald-send](https://badge.fury.io/py/journald-send.svg)](https://pypi.org/project/journald-send/)
+[![ReadTheDocs](https://readthedocs.org/projects/journald-send/badge/?version=latest)](https://journald-send.readthedocs.io?badge=latest)
+[![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
+
+
 A lightweight Python library to send messages to [journald] (Linux system logging) using its native protocol.
 
 ## 💡 Features
@@ -19,13 +25,13 @@ It is implemented with pure-Rust [rustix] and [memfd] crates, which provides ele
 
 Install via pip:
 
-```
+```sh
 pip install journald-send
 ```
 
 Or using uv:
 
-```
+```sh
 uv add journald-send
 ```
 
@@ -60,25 +66,25 @@ Contributions welcome; open an issue or PR.
 
 ### Setup
 
-```bash
+```sh
 uv sync --all-groups
 ```
 
 ### Build
 
-```bash
+```sh
 uv run maturin develop
 ```
 
 ### Run Tests
 
-```bash
+```sh
 uv run pytest
 ```
 
 ### Build Documentation
 
-```bash
+```sh
 just docs
 ```
 
@@ -90,8 +96,8 @@ This project learned from [tracing-journald] crate for how to talk with [journal
 [journald]: https://wiki.archlinux.org/title/Systemd/Journal
 [systemd]: https://systemd.io/
 [systemd-python]: https://pypi.org/project/systemd-python/
-[uv]: https://github.com/astral-sh/uv
-[libc]: https://docs.rs/libc
-[rustix]: https://docs.rs/rustix
-[memfd]: https://docs.rs/memfd
-[tracing-journald]: https://docs.rs/tracing-journald
+[uv]: https://pypi.org/project/uv/
+[libc]: https://crates.io/crates/libc
+[rustix]: https://crates.io/crates/rustix
+[memfd]: https://crates.io/crates/memfd
+[tracing-journald]: https://crates.io/crates/tracing-journald
