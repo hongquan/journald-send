@@ -9,7 +9,11 @@ use rustix::fd::{AsFd, BorrowedFd};
 #[cfg(target_os = "linux")]
 use rustix::io::IoSlice;
 #[cfg(target_os = "linux")]
+use rustix::net::{sendmsg_addr, SendAncillaryBuffer, SendAncillaryMessage, SendFlags};
+#[cfg(target_os = "linux")]
 use rustix::net;
+#[cfg(target_os = "linux")]
+use std::mem::MaybeUninit;
 
 #[cfg(target_os = "linux")]
 const JOURNALD_PATH: &str = "/run/systemd/journal/socket";
@@ -151,7 +155,7 @@ fn send_to_journald(
     match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
         Ok(_n) => Ok(()),
         Err(rustix::io::Errno::MSGSIZE) => {
-            send_large_payload(socket.as_fd(), &buf)
+            send_large_payload(socket.as_fd(), &addr, &buf)
         }
         Err(e) => Err(io::Error::from(e)),
     }
@@ -160,6 +164,7 @@ fn send_to_journald(
 #[cfg(target_os = "linux")]
 fn send_large_payload(
     socket: BorrowedFd<'_>,
+    addr: &net::SocketAddrUnix,
     payload: &[u8],
 ) -> io::Result<()> {
     // Create a sealable memfd
@@ -174,14 +179,11 @@ fn send_large_payload(
         .map_err(|e| io::Error::other(format!("memfd seal: {}", e)))?;
 
     // Send the file descriptor
-    send_fd(socket, &mfd)
+    send_fd(socket, addr, &mfd)
 }
 
 #[cfg(target_os = "linux")]
-fn send_fd(socket: BorrowedFd<'_>, mfd: &memfd::Memfd) -> io::Result<()> {
-    use rustix::net::{sendmsg, SendAncillaryBuffer, SendAncillaryMessage, SendFlags};
-    use std::mem::MaybeUninit;
-
+fn send_fd(socket: BorrowedFd<'_>, addr: &net::SocketAddrUnix, mfd: &memfd::Memfd) -> io::Result<()> {
     let dummy = [0u8; 1];
     let iov = IoSlice::new(&dummy);
 
@@ -192,7 +194,7 @@ fn send_fd(socket: BorrowedFd<'_>, mfd: &memfd::Memfd) -> io::Result<()> {
         return Err(io::Error::other("failed to push cmsg"));
     }
 
-    sendmsg(socket, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(io::Error::from)?;
+    sendmsg_addr(socket, addr, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(io::Error::from)?;
 
     Ok(())
 }

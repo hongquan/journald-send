@@ -205,6 +205,26 @@ def test_empty_custom_field_value():
     journald_send.send('Test empty field', EMPTY_FIELD='')
 
 
+def test_large_payload():
+    """Test sending a large payload using a poem.
+
+    This test is designed to trigger the send_large_payload path by sending
+    a message that exceeds the Unix datagram size limit, forcing the fallback
+    to memfd-based transmission.
+    """
+    poem = """
+    Cỏ non xanh rợn chân trời
+    Cành lê trắng điểm một vài bông hoa
+    Dưới trăng quyên đã gọi hè
+    Đầu tường lửa lựu lập loè đâm bông
+    Long lanh đáy nước in trời
+    Thành xây khói biếc non phơi bóng vàng
+    Sen tàn cúc lại nở hoa
+    Sầu dài ngày ngắn đông đà sang xuân
+    """ * 350
+    journald_send.send(poem)
+
+
 @pytest.mark.skipif(sys.platform != 'linux', reason='journald-send only works on Linux')
 def test_actual_journal_entry() -> None:
     """Test that messages actually reach the journal."""
