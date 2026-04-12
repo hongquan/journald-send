@@ -20,6 +20,7 @@ _PRI_WARNING = _core._PRI_WARNING
 _PRI_NOTICE = _core._PRI_NOTICE
 _PRI_INFO = _core._PRI_INFO
 _PRI_DEBUG = _core._PRI_DEBUG
+__version__ = _core.__version__
 
 
 class Priority(IntEnum):
@@ -112,4 +113,4 @@ def send(
     )
 
 
-__all__ = ['send', 'Priority']
+__all__ = ['send', 'Priority', '__version__']

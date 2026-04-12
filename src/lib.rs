@@ -320,4 +320,7 @@ mod _core {
     const _PRI_INFO: u8 = super::PRIORITY_INFO;
     #[pymodule_export]
     const _PRI_DEBUG: u8 = super::PRIORITY_DEBUG;
+
+    #[pymodule_export]
+    const __version__: &str = env!("CARGO_PKG_VERSION");
 }
