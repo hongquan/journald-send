@@ -128,9 +128,9 @@ jobs:
       - name: Install test dependencies
         run: uv sync --group test
       - name: Install wheel
-        run: uv run python -m pip install dist/*.whl
+        run: uv pip install dist/*.whl
       - name: Run tests
-        run: uv run pytest -q
+        run: .venv/bin/pytest
 
   docs:
     runs-on: ubuntu-latest

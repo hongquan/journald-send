@@ -17,9 +17,10 @@ A lightweight Python library to send messages to [journald] (Linux system loggin
 
 ## 🤔 Motivation
 
-Previously, I use [systemd-python], but this library is slow to make release, and its support of Python 3.14, especially free-threaded mode, is unknown.
-So I make `journald-send` to support Python 3.14 and free-threaded mode.
-It is implemented with pure-Rust [rustix] and [memfd] crates, which provides elegant, Rust ergonomic API comparing to libc.
+Previously, I used [systemd-python], but this library was slow to release, and its support for Python 3.14, especially in free-threaded mode, was unknown.
+So I developed `journald-send` to support Python 3.14 and free-threaded mode.
+
+It is implemented using pure-Rust [rustix] and [memfd] crates, which provide an elegant, Rust-ergonomic API compared to *libc*.
 
 ## 📦 Installation
 
