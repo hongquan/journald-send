@@ -28,6 +28,7 @@ python:
    install:
       - method: uv
         command: sync
+        path: .
         groups:
           - docs
           - dev
