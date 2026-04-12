@@ -19,12 +19,15 @@ build:
    tools:
       python: "3.12"
       rust: "latest"
-   commands:
-      # Install maturin to build the Rust extension
-      - pip install maturin
-      # Build and install the package in development mode
-      - maturin develop
+   jobs:
+      install:
+         # Build and install the package in development mode
+         - uv run maturin develop
 
 python:
    install:
-   - requirements: docs/requirements.txt
+      - method: uv
+        command: sync
+        groups:
+          - docs
+          - dev
