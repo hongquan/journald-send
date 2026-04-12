@@ -4,9 +4,10 @@ A lightweight Python library to send messages to [journald] (Linux system loggin
 
 ## Features
 
-- Simple function to log messages directly to [journald].
-- No dependencies on [systemd] or C-based `libsystemd`.
-- Pure-Rust (not depending on [libc], although PyO3 may include it when linking with CPython).
+- Simple function to log messages directly to [journald] using its native protocol
+- Best for structured logging
+- Pure-Rust (not depending on [libc], although PyO3 may include it when linking with CPython)
+- No dependencies on [systemd] or C-based `libsystemd` (only writes to journald, does not read or interact with systemd)
 
 ## Installation
 

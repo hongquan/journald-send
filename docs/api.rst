@@ -6,6 +6,12 @@ journald_send.send
 
 .. autofunction:: journald_send.send
 
+journald_send.Priority
+----------------------
+
+.. autoclass:: journald_send.Priority
+   :members:
+
 Standard Fields
 ----------------
 
@@ -35,13 +41,22 @@ Field names are automatically sanitized and converted to uppercase.
 Priority Levels
 ---------------
 
-Standard syslog priority levels can be set using the PRIORITY field:
+Priority levels can be set using the ``priority`` parameter with the :class:`~journald_send.Priority` enum:
 
-* 0: Emergency
-* 1: Alert
-* 2: Critical
-* 3: Error
-* 4: Warning
-* 5: Notice
-* 6: Informational (default)
-* 7: Debug
+.. code-block:: python
+
+   import journald_send
+   from journald_send import Priority
+
+   journald_send.send("Error occurred", priority=Priority.ERROR)
+
+Available priority levels:
+
+* ``Priority.EMERGENCY`` (0): Emergency
+* ``Priority.ALERT`` (1): Alert
+* ``Priority.CRITICAL`` (2): Critical
+* ``Priority.ERROR`` (3): Error
+* ``Priority.WARNING`` (4): Warning
+* ``Priority.NOTICE`` (5): Notice
+* ``Priority.INFO`` (6): Informational (default)
+* ``Priority.DEBUG`` (7): Debug
