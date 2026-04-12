@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use std::io::Write;
+use std::io::{self, Write};
 
 #[cfg(target_os = "linux")]
 use memfd;
@@ -18,21 +18,43 @@ const JOURNALD_PATH: &str = "/run/systemd/journal/socket";
 ///
 /// Args:
 ///     message: The log message (MESSAGE field)
-///     message_id: Optional message ID (MESSAGE_ID field)
 ///     code_file: Optional source file (CODE_FILE field)
 ///     code_line: Optional source line (CODE_LINE field)
 ///     code_func: Optional function name (CODE_FUNC field)
 ///     **kwargs: Additional fields to include in the journal entry
 ///
 /// Example:
-///     >>> journald_send.send("Hello World", PRIORITY=6, MY_FIELD="custom")
+///     >>> journald_send.send("Hello World", priority=6, MY_FIELD="custom")
+
+
+// Export named constants for priorities so they are available from Python as
+// module-level constants (e.g., _core.PRIORITY_EMERGENCY). The Python wrapper
+// package (`src/journald_send/__init__.py`) can re-export nicer names.
+#[allow(dead_code)]
+pub const PRIORITY_EMERGENCY: u8 = 0;
+#[allow(dead_code)]
+pub const PRIORITY_ALERT: u8 = 1;
+#[allow(dead_code)]
+pub const PRIORITY_CRITICAL: u8 = 2;
+#[allow(dead_code)]
+pub const PRIORITY_ERROR: u8 = 3;
+#[allow(dead_code)]
+pub const PRIORITY_WARNING: u8 = 4;
+#[allow(dead_code)]
+pub const PRIORITY_NOTICE: u8 = 5;
+#[allow(dead_code)]
+pub const PRIORITY_INFO: u8 = 6;
+#[allow(dead_code)]
+pub const PRIORITY_DEBUG: u8 = 7;
+
+
 #[cfg(target_os = "linux")]
 #[pyfunction]
-#[pyo3(signature = (message, message_id=None, code_file=None, code_line=None, code_func=None, **kwargs))]
+#[pyo3(signature = (message, priority=None, code_file=None, code_line=None, code_func=None, **kwargs))]
 fn send(
     py: Python<'_>,
     message: String,
-    message_id: Option<String>,
+    priority: Option<u8>,
     code_file: Option<String>,
     code_line: Option<u64>,
     code_func: Option<String>,
@@ -50,7 +72,7 @@ fn send(
     py.detach(|| {
         send_to_journald(
             &message,
-            message_id.as_deref(),
+            priority,
             code_file.as_deref(),
             code_line,
             code_func.as_deref(),
@@ -67,11 +89,11 @@ fn send(
 
 #[cfg(not(target_os = "linux"))]
 #[pyfunction]
-#[pyo3(signature = (message, message_id=None, code_file=None, code_line=None, code_func=None, **kwargs))]
+#[pyo3(signature = (message, priority=None, code_file=None, code_line=None, code_func=None, **kwargs))]
 fn send(
     _py: Python<'_>,
     _message: String,
-    _message_id: Option<String>,
+    _priority: Option<u8>,
     _code_file: Option<String>,
     _code_line: Option<u64>,
     _code_func: Option<String>,
@@ -82,15 +104,17 @@ fn send(
     ))
 }
 
+
+
 #[cfg(target_os = "linux")]
 fn send_to_journald(
     message: &str,
-    message_id: Option<&str>,
+    priority: Option<u8>,
     code_file: Option<&str>,
     code_line: Option<u64>,
     code_func: Option<&str>,
     extra_fields: &[(String, String)],
-) -> std::io::Result<()> {
+) -> io::Result<()> {
     let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
     let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
     let mut buf = Vec::with_capacity(512);
@@ -99,10 +123,6 @@ fn send_to_journald(
     put_field_wellformed(&mut buf, "MESSAGE", message.as_bytes());
 
     // Add optional standard fields
-    if let Some(mid) = message_id {
-        put_field_wellformed(&mut buf, "MESSAGE_ID", mid.as_bytes());
-    }
-
     if let Some(file) = code_file {
         put_field_wellformed(&mut buf, "CODE_FILE", file.as_bytes());
     }
@@ -113,6 +133,11 @@ fn send_to_journald(
 
     if let Some(func) = code_func {
         put_field_wellformed(&mut buf, "CODE_FUNC", func.as_bytes());
+    }
+
+    // Add priority if provided
+    if let Some(p) = priority {
+        put_field_wellformed(&mut buf, "PRIORITY", p.to_string().as_bytes());
     }
 
     // Add custom fields
@@ -128,7 +153,7 @@ fn send_to_journald(
         Err(rustix::io::Errno::MSGSIZE) => {
             send_large_payload(socket.as_fd(), &buf)
         }
-        Err(e) => Err(std::io::Error::from(e)),
+        Err(e) => Err(io::Error::from(e)),
     }
 }
 
@@ -136,24 +161,24 @@ fn send_to_journald(
 fn send_large_payload(
     socket: BorrowedFd<'_>,
     payload: &[u8],
-) -> std::io::Result<()> {
+) -> io::Result<()> {
     // Create a sealable memfd
     let opts = memfd::MemfdOptions::default().allow_sealing(true);
-    let mfd = opts.create("journald-send").map_err(|e| std::io::Error::other(format!("memfd: {}", e)))?;
+    let mfd = opts.create("journald-send").map_err(|e| io::Error::other(format!("memfd: {}", e)))?;
 
     // Write payload to memfd
     mfd.as_file().write_all(payload)?;
 
     // Seal the memfd to prevent further modifications
     mfd.add_seals(&[memfd::FileSeal::SealShrink, memfd::FileSeal::SealGrow])
-        .map_err(|e| std::io::Error::other(format!("memfd seal: {}", e)))?;
+        .map_err(|e| io::Error::other(format!("memfd seal: {}", e)))?;
 
     // Send the file descriptor
     send_fd(socket, &mfd)
 }
 
 #[cfg(target_os = "linux")]
-fn send_fd(socket: BorrowedFd<'_>, mfd: &memfd::Memfd) -> std::io::Result<()> {
+fn send_fd(socket: BorrowedFd<'_>, mfd: &memfd::Memfd) -> io::Result<()> {
     use rustix::net::{sendmsg, SendAncillaryBuffer, SendAncillaryMessage, SendFlags};
     use std::mem::MaybeUninit;
 
@@ -164,10 +189,10 @@ fn send_fd(socket: BorrowedFd<'_>, mfd: &memfd::Memfd) -> std::io::Result<()> {
     let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
     let mut cmsg_buffer = SendAncillaryBuffer::new(space.as_mut_slice());
     if !cmsg_buffer.push(msg) {
-        return Err(std::io::Error::other("failed to push cmsg"));
+        return Err(io::Error::other("failed to push cmsg"));
     }
 
-    sendmsg(socket, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(std::io::Error::from)?;
+    sendmsg(socket, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(io::Error::from)?;
 
     Ok(())
 }
@@ -229,8 +254,27 @@ fn put_value(buf: &mut Vec<u8>, value: &[u8]) {
 }
 
 /// A Python module implemented in Rust.
+
 #[pyo3::pymodule]
 mod _core {
     #[pymodule_export]
     use super::send;
+
+    // Export underscore-prefixed constants so they are available as module attributes
+    #[pymodule_export]
+    const _PRI_EMERGENCY: u8 = super::PRIORITY_EMERGENCY;
+    #[pymodule_export]
+    const _PRI_ALERT: u8 = super::PRIORITY_ALERT;
+    #[pymodule_export]
+    const _PRI_CRITICAL: u8 = super::PRIORITY_CRITICAL;
+    #[pymodule_export]
+    const _PRI_ERROR: u8 = super::PRIORITY_ERROR;
+    #[pymodule_export]
+    const _PRI_WARNING: u8 = super::PRIORITY_WARNING;
+    #[pymodule_export]
+    const _PRI_NOTICE: u8 = super::PRIORITY_NOTICE;
+    #[pymodule_export]
+    const _PRI_INFO: u8 = super::PRIORITY_INFO;
+    #[pymodule_export]
+    const _PRI_DEBUG: u8 = super::PRIORITY_DEBUG;
 }

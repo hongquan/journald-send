@@ -1,6 +1,9 @@
 """Test cases for journald-send module."""
 
+import subprocess
 import sys
+import time
+import uuid
 
 import pytest
 
@@ -203,18 +206,18 @@ def test_empty_custom_field_value():
 
 
 @pytest.mark.skipif(sys.platform != 'linux', reason='journald-send only works on Linux')
-def test_actual_journal_entry():
+def test_actual_journal_entry() -> None:
     """Test that messages actually reach the journal."""
-    import subprocess
-    import time
-    import uuid
 
     unique_id = str(uuid.uuid4())
     journald_send.send(f'Integration test {unique_id}', TEST_ID=unique_id)
     time.sleep(0.1)
     try:
         result = subprocess.run(
-            ['journalctl', '--user', '-n', '1', '--output=cat'], capture_output=True, text=True, timeout=5
+            ['journalctl', '--user', '-n', '1', '--output=cat'],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         assert result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):

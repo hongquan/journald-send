@@ -68,6 +68,7 @@ docs/_build/
 
 # VSCode
 .vscode/
+.helix
 
 # Pyenv
 .python-version
