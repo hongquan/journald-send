@@ -13,7 +13,8 @@ from . import Priority, send as _send
 class JournalHandler(_logging.Handler):
     """Handler for the Python standard logging framework.
 
-    Log records are forwarded to journald via :func:`journald_send.send`.
+    It is model after systemd-python's ``JournalHandler``,
+    but using our :func:`journald_send.send` to forward the logs to ``journald``.
 
     Example usage::
 
@@ -44,7 +45,7 @@ class JournalHandler(_logging.Handler):
         self,
         level: int | str = _logging.NOTSET,
         *,
-        sender: Callable[..., None] = _send,  # type: ignore[assignment]
+        sender: Callable[..., None] = _send,
         **kwargs: str,
     ) -> None:
         """Create a :class:`JournalHandler`.
@@ -154,6 +155,7 @@ class JournalHandler(_logging.Handler):
                 PROCESS_NAME=record.processName,
                 **extras,
             )
+        # Follow `systemd-python` to catch general Exception.
         except Exception:  # noqa: BLE001
             self.handleError(record)
 
@@ -177,6 +179,3 @@ class JournalHandler(_logging.Handler):
         if levelno <= _logging.CRITICAL:
             return Priority.CRITICAL
         return Priority.ALERT
-
-    # Backwards-compatible alias
-    mapPriority = map_priority

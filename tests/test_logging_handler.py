@@ -37,11 +37,6 @@ def test_emit_calls_send() -> None:
     assert call_kwargs['LOGGER'] == 'test_logger'
 
 
-def test_map_priority_alias() -> None:
-    """mapPriority should be an alias for map_priority."""
-    assert JournalHandler.mapPriority is JournalHandler.map_priority
-
-
 def test_syslog_identifier_default() -> None:
     """SYSLOG_IDENTIFIER defaults to sys.argv[0]."""
     calls: list[tuple[str, dict[str, str]]] = []

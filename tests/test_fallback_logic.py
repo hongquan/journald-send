@@ -182,7 +182,7 @@ def test_message_id_uuid() -> None:
 def test_message_id_invalid_type() -> None:
     """MESSAGE_ID that is neither string nor UUID raises ValueError."""
     with pytest.raises(ValueError, match='MESSAGE_ID'):
-        journald_send.send('bad', MESSAGE_ID=12345)  # type: ignore[arg-type]
+        journald_send.send('bad', MESSAGE_ID=12345)
 
 
 def test_message_id_none_passed() -> None:
