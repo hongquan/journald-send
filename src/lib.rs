@@ -9,9 +9,9 @@ use rustix::fd::{AsFd, BorrowedFd};
 #[cfg(target_os = "linux")]
 use rustix::io::IoSlice;
 #[cfg(target_os = "linux")]
-use rustix::net::{sendmsg_addr, SendAncillaryBuffer, SendAncillaryMessage, SendFlags};
-#[cfg(target_os = "linux")]
 use rustix::net;
+#[cfg(target_os = "linux")]
+use rustix::net::{SendAncillaryBuffer, SendAncillaryMessage, SendFlags, sendmsg_addr};
 #[cfg(target_os = "linux")]
 use std::mem::MaybeUninit;
 
@@ -29,7 +29,6 @@ const JOURNALD_PATH: &str = "/run/systemd/journal/socket";
 ///
 /// Example:
 ///     >>> journald_send.send("Hello World", priority=6, MY_FIELD="custom")
-
 
 // Export named constants for priorities so they are available from Python as
 // module-level constants (e.g., _core.PRIORITY_EMERGENCY). The Python wrapper
@@ -50,7 +49,6 @@ pub const PRIORITY_NOTICE: u8 = 5;
 pub const PRIORITY_INFO: u8 = 6;
 #[allow(dead_code)]
 pub const PRIORITY_DEBUG: u8 = 7;
-
 
 #[cfg(target_os = "linux")]
 #[pyfunction]
@@ -108,8 +106,6 @@ fn send(
     ))
 }
 
-
-
 #[cfg(target_os = "linux")]
 fn send_to_journald(
     message: &str,
@@ -127,30 +123,28 @@ fn send_to_journald(
 
     let filtered_extra_fields: Vec<(String, String)> = extra_fields
         .iter()
-        .filter_map(|(key, value)| {
-            match key.to_uppercase().as_str() {
-                "PRIORITY" => {
-                    if let Ok(p) = value.parse::<u8>() {
-                        extra_priority = Some(p);
-                    }
-                    None
+        .filter_map(|(key, value)| match key.to_uppercase().as_str() {
+            "PRIORITY" => {
+                if let Ok(p) = value.parse::<u8>() {
+                    extra_priority = Some(p);
                 }
-                "CODE_FILE" => {
-                    extra_code_file = Some(value.clone());
-                    None
-                }
-                "CODE_LINE" => {
-                    if let Ok(l) = value.parse::<u64>() {
-                        extra_code_line = Some(l);
-                    }
-                    None
-                }
-                "CODE_FUNC" => {
-                    extra_code_func = Some(value.clone());
-                    None
-                }
-                _ => Some((key.clone(), value.clone())),
+                None
             }
+            "CODE_FILE" => {
+                extra_code_file = Some(value.clone());
+                None
+            }
+            "CODE_LINE" => {
+                if let Ok(l) = value.parse::<u64>() {
+                    extra_code_line = Some(l);
+                }
+                None
+            }
+            "CODE_FUNC" => {
+                extra_code_func = Some(value.clone());
+                None
+            }
+            _ => Some((key.clone(), value.clone())),
         })
         .collect();
 
@@ -195,9 +189,7 @@ fn send_to_journald(
     // Send the payload
     match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
         Ok(_n) => Ok(()),
-        Err(rustix::io::Errno::MSGSIZE) => {
-            send_large_payload(socket.as_fd(), &addr, &buf)
-        }
+        Err(rustix::io::Errno::MSGSIZE) => send_large_payload(socket.as_fd(), &addr, &buf),
         Err(e) => Err(io::Error::from(e)),
     }
 }
@@ -210,7 +202,9 @@ fn send_large_payload(
 ) -> io::Result<()> {
     // Create a sealable memfd
     let opts = memfd::MemfdOptions::default().allow_sealing(true);
-    let mfd = opts.create("journald-send").map_err(|e| io::Error::other(format!("memfd: {}", e)))?;
+    let mfd = opts
+        .create("journald-send")
+        .map_err(|e| io::Error::other(format!("memfd: {}", e)))?;
 
     // Write payload to memfd
     mfd.as_file().write_all(payload)?;
@@ -224,7 +218,11 @@ fn send_large_payload(
 }
 
 #[cfg(target_os = "linux")]
-fn send_fd(socket: BorrowedFd<'_>, addr: &net::SocketAddrUnix, mfd: &memfd::Memfd) -> io::Result<()> {
+fn send_fd(
+    socket: BorrowedFd<'_>,
+    addr: &net::SocketAddrUnix,
+    mfd: &memfd::Memfd,
+) -> io::Result<()> {
     let dummy = [0u8; 1];
     let iov = IoSlice::new(&dummy);
 
@@ -235,7 +233,8 @@ fn send_fd(socket: BorrowedFd<'_>, addr: &net::SocketAddrUnix, mfd: &memfd::Memf
         return Err(io::Error::other("failed to push cmsg"));
     }
 
-    sendmsg_addr(socket, addr, &[iov], &mut cmsg_buffer, SendFlags::empty()).map_err(io::Error::from)?;
+    sendmsg_addr(socket, addr, &[iov], &mut cmsg_buffer, SendFlags::empty())
+        .map_err(io::Error::from)?;
 
     Ok(())
 }
@@ -322,5 +321,5 @@ mod _core {
     const _PRI_DEBUG: u8 = super::PRIORITY_DEBUG;
 
     #[pymodule_export]
-    const __version__: &str = env!("CARGO_PKG_VERSION");
+    const _VERSION: &str = env!("CARGO_PKG_VERSION");
 }
