@@ -1,19 +1,13 @@
 API Reference
 =============
 
-journald_send.send
+Core send function
 ------------------
 
 .. autofunction:: journald_send.send
 
-journald_send.Priority
-----------------------
-
-.. autoclass:: journald_send.Priority
-   :members:
-
-Standard Fields
-----------------
+Standard fields
+~~~~~~~~~~~~~~~
 
 The following standard journald fields are supported:
 
@@ -23,8 +17,8 @@ The following standard journald fields are supported:
 * **CODE_LINE**: Optional source line number
 * **CODE_FUNC**: Optional function name
 
-Custom Fields
--------------
+Custom fields
+~~~~~~~~~~~~~
 
 Any additional keyword arguments are treated as custom journald fields.
 Field names are automatically sanitized and converted to uppercase.
@@ -38,8 +32,13 @@ Field names are automatically sanitized and converted to uppercase.
        ANOTHER_FIELD=123
    )
 
-Priority Levels
----------------
+Priority enum
+-------------
+
+.. autoclass:: journald_send.Priority
+   :members:
+   :undoc-members:
+
 
 Priority levels can be set using the ``priority`` parameter with the :class:`~journald_send.Priority` enum:
 
@@ -50,13 +49,9 @@ Priority levels can be set using the ``priority`` parameter with the :class:`~jo
 
    journald_send.send("Error occurred", priority=Priority.ERROR)
 
-Available priority levels:
 
-* ``Priority.EMERGENCY`` (0): Emergency
-* ``Priority.ALERT`` (1): Alert
-* ``Priority.CRITICAL`` (2): Critical
-* ``Priority.ERROR`` (3): Error
-* ``Priority.WARNING`` (4): Warning
-* ``Priority.NOTICE`` (5): Notice
-* ``Priority.INFO`` (6): Informational (default)
-* ``Priority.DEBUG`` (7): Debug
+Logging handler
+---------------
+
+.. autoclass:: journald_send.log_handler.JournalHandler
+   :members:

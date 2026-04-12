@@ -88,6 +88,8 @@ class JournalHandler(_logging.Handler):
         ``PRIORITY``, ``LOGGER``, ``THREAD_NAME``, ``PROCESS_NAME``,
         ``CODE_FILE``, ``CODE_LINE``, ``CODE_FUNC`` are appended
         automatically.  ``MESSAGE_ID`` is used when present in *record*.
+
+        :meta private:
         """
         try:
             msg = self.format(record)
@@ -167,6 +169,8 @@ class JournalHandler(_logging.Handler):
         CRITICAL=50.
 
         Journald priorities (syslog): 0=EMERGENCY … 7=DEBUG.
+
+        :meta private:
         """
         if levelno <= _logging.DEBUG:
             return Priority.DEBUG
