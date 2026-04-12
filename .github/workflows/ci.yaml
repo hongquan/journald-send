@@ -162,9 +162,9 @@ jobs:
           name: wheels-linux-x86_64-3.14
           path: dist
       - name: Install wheel
-        run: uv pip install dist/*.whl
+        run: uv pip install --system dist/*.whl
       - name: Install zuban
-        run: uv pip install zuban
+        run: uv tool install zuban
       - name: Run type check
         run: zuban check
 
