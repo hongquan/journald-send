@@ -3,6 +3,7 @@ name = "journald-send"
 authors = [
     { name = "Nguyễn Hồng Quân", email = "ng.hong.quan@gmail.com" }
 ]
+license = "Apache-2.0"
 requires-python = ">=3.12"
 readme = "README.md"
 classifiers = [

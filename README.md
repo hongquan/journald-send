@@ -75,3 +75,9 @@ just docs
 [systemd]: https://systemd.io/
 [uv]: https://github.com/astral-sh/uv
 [libc]: https://docs.rs/libc
+
+## Credits
+
+This project learned from and was inspired by the [tracing-journald] crate.
+
+[tracing-journald]: https://docs.rs/tracing-journald
