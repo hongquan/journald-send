@@ -5,8 +5,9 @@ IntEnum to name journald priority levels (0-7) per the systemd/journald API.
 """
 
 from enum import IntEnum
+from uuid import UUID
 
-from . import _core  # type: ignore[misc, import-not-found]  # compiled extension
+from . import _core  # type: ignore[misc, import-not-found, attr-defined]  # compiled extension
 
 
 # Read underscore-prefixed constants from the compiled extension directly.
@@ -46,26 +47,60 @@ def send(
 ) -> None:
     """Send a message to journald.
 
-    Args:
-        message: The log message (MESSAGE field).
-        code_file: Optional source file (CODE_FILE field).
-        code_line: Optional source line (CODE_LINE field).
-        code_func: Optional function name (CODE_FUNC field).
-        **kwargs: Additional fields to include in the journal entry.
-            Field names are uppercased and sanitized per journald conventions.
-            Values are converted to strings.
+    :param message: The log message (MESSAGE field).
+    :param priority: Log priority level (0–7).
+    :param code_file: Source file (CODE_FILE field).
+    :param code_line: Source line (CODE_LINE field).
+    :param code_func: Function name (CODE_FUNC field).
+    :param kwargs: Additional fields to include in the journal entry.
+        Field names are uppercased and sanitized per journald conventions.
+        Values are converted to strings.  ``CODE_LINE`` must be an integer,
+        ``MESSAGE_ID`` must be a string or :class:`uuid.UUID`.
 
-    Raises:
-        OSError: If not on Linux or if sending to journald fails.
+    When both an explicit parameter and the corresponding keyword argument
+    (e.g. ``priority`` vs ``PRIORITY``) are given, the explicit parameter
+    takes precedence.  When the explicit parameter is ``None``, the value
+    from *kwargs* is used as a fallback.
 
-    Example:
-        >>> import journald_send
-        >>> journald_send.send("Hello World", PRIORITY=6, MY_FIELD="custom")
+    :raises OSError: If not on Linux or if sending to journald fails.
+    :raises ValueError: If *priority* (or ``PRIORITY`` in *kwargs*) is out of range,
+        *code_line* (or ``CODE_LINE`` in *kwargs*) is not an integer,
+        or *MESSAGE_ID* in *kwargs* is not a string or :class:`uuid.UUID`.
+
+    Example::
+
+        import journald_send
+        journald_send.send("Hello World", priority=6, MY_FIELD="custom")
     """
 
-    # Validate that priority value is in valid range (0-7)
+    # Validate that the explicit priority (IntEnum) is in range
     if priority is not None and not (0 <= priority <= 7):
-        raise ValueError("priority must be an integer between 0 and 7")
+        raise ValueError('priority must be an integer between 0 and 7')
+
+    # Validate PRIORITY in kwargs (accepts int or str, but not Priority enum)
+    extra_priority = kwargs.get('PRIORITY')
+    if extra_priority is not None:
+        try:
+            p = int(str(extra_priority))
+        except (ValueError, TypeError):
+            raise ValueError('PRIORITY must be an integer between 0 and 7') from None
+        if not (0 <= p <= 7):
+            raise ValueError('PRIORITY must be an integer between 0 and 7')
+
+    # Validate code_line (explicit) and CODE_LINE (kwargs)
+    extra_code_line = kwargs.get('CODE_LINE')
+    if code_line is not None and not isinstance(code_line, int):
+        raise ValueError('code_line must be an integer')
+    if extra_code_line is not None:
+        try:
+            int(str(extra_code_line))
+        except (ValueError, TypeError):
+            raise ValueError('CODE_LINE must be an integer') from None
+
+    # Validate MESSAGE_ID in kwargs (string or UUID)
+    extra_message_id = kwargs.get('MESSAGE_ID')
+    if extra_message_id is not None and not isinstance(extra_message_id, (str, UUID)):
+        raise ValueError('MESSAGE_ID must be a string or uuid.UUID')
 
     _core.send(
         message,
@@ -77,4 +112,4 @@ def send(
     )
 
 
-__all__ = ["send", "Priority"]
+__all__ = ['send', 'Priority']

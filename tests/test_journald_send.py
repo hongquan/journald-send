@@ -221,17 +221,17 @@ def test_large_payload():
         rmem_max = int(out.strip())
 
     base = (
-        "Cỏ non xanh rợn chân trời\n"
-        "Cành lê trắng điểm một vài bông hoa.\n"
-        "...\n"
-        "Dưới trăng quyên đã gọi hè\n"
-        "Đầu tường lửa lựu lập loè đâm bông.\n"
-        "...\n"
-        "Long lanh đáy nước in trời\n"
-        "Thành xây khói biếc non phơi bóng vàng.\n"
-        "...\n"
-        "Sen tàn cúc lại nở hoa\n"
-        "Sầu dài ngày ngắn đông đà sang xuân\n"
+        'Cỏ non xanh rợn chân trời\n'
+        'Cành lê trắng điểm một vài bông hoa.\n'
+        '...\n'
+        'Dưới trăng quyên đã gọi hè\n'
+        'Đầu tường lửa lựu lập loè đâm bông.\n'
+        '...\n'
+        'Long lanh đáy nước in trời\n'
+        'Thành xây khói biếc non phơi bóng vàng.\n'
+        '...\n'
+        'Sen tàn cúc lại nở hoa\n'
+        'Sầu dài ngày ngắn đông đà sang xuân\n'
     )
 
     # Make payload exceed the guessed limit

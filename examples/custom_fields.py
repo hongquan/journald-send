@@ -1,7 +1,7 @@
 """Custom fields example."""
 
-from journald_send import Priority
 import journald_send
+from journald_send import Priority
 
 
 journald_send.send(

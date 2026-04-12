@@ -119,6 +119,47 @@ fn send_to_journald(
     code_func: Option<&str>,
     extra_fields: &[(String, String)],
 ) -> io::Result<()> {
+    // --- Extract main fields from extra_fields for fallback when explicit params are None ---
+    let mut extra_priority: Option<u8> = None;
+    let mut extra_code_file: Option<String> = None;
+    let mut extra_code_line: Option<u64> = None;
+    let mut extra_code_func: Option<String> = None;
+
+    let filtered_extra_fields: Vec<(String, String)> = extra_fields
+        .iter()
+        .filter_map(|(key, value)| {
+            match key.to_uppercase().as_str() {
+                "PRIORITY" => {
+                    if let Ok(p) = value.parse::<u8>() {
+                        extra_priority = Some(p);
+                    }
+                    None
+                }
+                "CODE_FILE" => {
+                    extra_code_file = Some(value.clone());
+                    None
+                }
+                "CODE_LINE" => {
+                    if let Ok(l) = value.parse::<u64>() {
+                        extra_code_line = Some(l);
+                    }
+                    None
+                }
+                "CODE_FUNC" => {
+                    extra_code_func = Some(value.clone());
+                    None
+                }
+                _ => Some((key.clone(), value.clone())),
+            }
+        })
+        .collect();
+
+    // Explicit parameters take precedence; fall back to extra_fields when None.
+    let final_priority = priority.or(extra_priority);
+    let final_code_file = code_file.or(extra_code_file.as_deref());
+    let final_code_line = code_line.or(extra_code_line);
+    let final_code_func = code_func.or(extra_code_func.as_deref());
+
     let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
     let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
     let mut buf = Vec::with_capacity(512);
@@ -127,26 +168,26 @@ fn send_to_journald(
     put_field_wellformed(&mut buf, "MESSAGE", message.as_bytes());
 
     // Add optional standard fields
-    if let Some(file) = code_file {
+    if let Some(file) = final_code_file {
         put_field_wellformed(&mut buf, "CODE_FILE", file.as_bytes());
     }
 
-    if let Some(line) = code_line {
+    if let Some(line) = final_code_line {
         put_field_wellformed(&mut buf, "CODE_LINE", line.to_string().as_bytes());
     }
 
-    if let Some(func) = code_func {
+    if let Some(func) = final_code_func {
         put_field_wellformed(&mut buf, "CODE_FUNC", func.as_bytes());
     }
 
     // Add priority if provided
-    if let Some(p) = priority {
+    if let Some(p) = final_priority {
         put_field_wellformed(&mut buf, "PRIORITY", p.to_string().as_bytes());
     }
 
-    // Add custom fields
-    for (key, value) in extra_fields {
-        put_field_length_encoded(&mut buf, &key.to_uppercase(), |buf| {
+    // Add remaining custom fields
+    for (key, value) in &filtered_extra_fields {
+        put_field_length_encoded(&mut buf, key, |buf| {
             buf.extend_from_slice(value.as_bytes());
         });
     }

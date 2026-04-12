@@ -262,7 +262,7 @@ dev = [{ name = "maturin", specifier = ">=1.13.1" }]
 docs = [
     { name = "furo" },
     { name = "myst-parser", specifier = ">=5.0.0" },
-    { name = "sphinx", specifier = ">=8.0" },
+    { name = "sphinx", specifier = ">=9.1.0" },
     { name = "sphinx-autobuild" },
 ]
 lint = [{ name = "ruff", specifier = ">=0.15.10" }]
