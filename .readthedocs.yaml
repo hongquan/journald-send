@@ -21,14 +21,7 @@ build:
       rust: "latest"
    jobs:
       install:
+         # Install dependencies with uv
+         - uv sync --group dev --group docs
          # Build and install the package in development mode
          - uv run maturin develop
-
-python:
-   install:
-      - method: uv
-        command: sync
-        path: .
-        groups:
-          - docs
-          - dev
