@@ -6,6 +6,24 @@ Core send function
 
 .. autofunction:: journald_send.send
 
+Compliant send function
+-----------------------
+
+.. autofunction:: journald_send.send_compliant
+
+The ``send_compliant`` function accepts a list of key-value tuples, allowing for repeated keys,
+which is compliant with the journald native protocol. Keys are automatically sanitized and
+converted to uppercase.
+
+.. code-block:: python
+
+   import journald_send
+   journald_send.send_compliant([
+       ("MESSAGE", "Hello World"),
+       ("PRIORITY", "6"),
+       ("CUSTOM_FIELD", "custom value"),
+   ])
+
 Standard fields
 ~~~~~~~~~~~~~~~
 

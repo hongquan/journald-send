@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 def send(
     message: str,
     priority: int | None = None,
@@ -6,6 +8,7 @@ def send(
     code_func: str | None = None,
     **kwargs: object,
 ) -> None: ...
+def send_compliant(entries: Sequence[tuple[str, str]]) -> None: ...
 
 _PRI_EMERGENCY: int
 _PRI_ALERT: int

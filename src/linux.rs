@@ -140,7 +140,7 @@ fn send_fd(
 }
 
 /// Mangle a name into journald-compliant form.
-fn sanitize_name(name: &str, buf: &mut Vec<u8>) {
+pub fn sanitize_name(name: &str, buf: &mut Vec<u8>) {
     // Copied from tracing-jounrald.
     buf.extend(
         name.bytes()
@@ -193,4 +193,40 @@ fn put_value(buf: &mut Vec<u8>, value: &[u8]) {
     buf.extend_from_slice(&(value.len() as u64).to_le_bytes());
     buf.extend_from_slice(value);
     buf.push(b'\n');
+}
+
+// This function will join each entry with `=` before sending to journald.
+// The keys must be uppercase, it will strip non-compliant entries.
+pub fn send_compliant_to_journald(entries: &[(String, String)]) -> io::Result<()> {
+    let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
+    let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
+    let mut buf = Vec::with_capacity(512);
+
+    for (key, value) in entries {
+        // Validate that the key is uppercase, skip non-compliant entries
+        if !key
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c == b'_' as char)
+        {
+            continue;
+        }
+
+        // Join each entry with `=`
+        buf.extend_from_slice(key.as_bytes());
+        buf.push(b'=');
+        buf.extend_from_slice(value.as_bytes());
+        buf.push(b'\n');
+    }
+
+    // If no valid entries remain, don't send anything
+    if buf.is_empty() {
+        return Ok(());
+    }
+
+    // Send the payload
+    match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
+        Ok(_n) => Ok(()),
+        Err(rustix::io::Errno::MSGSIZE) => send_large_payload(socket.as_fd(), &addr, &buf),
+        Err(e) => Err(io::Error::from(e)),
+    }
 }

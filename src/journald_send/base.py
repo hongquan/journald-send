@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from enum import IntEnum
 from uuid import UUID
 
@@ -104,3 +105,30 @@ def send(
         code_func=code_func,
         **kwargs,
     )
+
+
+# Per https://systemd.io/JOURNAL_NATIVE_PROTOCOL/,
+# the key-value data that journald accepts can have repeated keys.
+# Quotes:
+# A well-written logging client library thus will not use a plain dictionary for accepting structured log metadata,
+# but rather a data structure that allows non-unique keys, for example an array,
+# or a dictionary that optionally maps to a set of values instead of a single value.
+def send_compliant(entries: Sequence[tuple[str, str]]) -> None:
+    """Send a compliant message to journald.
+
+    This function accepts a list of key-value tuples, allowing for repeated keys,
+    which is compliant with the journald native protocol.
+
+    :param entries: A list of (key, value) tuples. Keys will be normalized to uppercase.
+    :raises OSError: If not on Linux or if sending to journald fails.
+
+    Example::
+
+        import journald_send
+        journald_send.send_compliant([
+            ("MESSAGE", "Hello World"),
+            ("PRIORITY", "6"),
+            ("MY_FIELD", "custom"),
+        ])
+    """
+    _core.send_compliant(entries)
