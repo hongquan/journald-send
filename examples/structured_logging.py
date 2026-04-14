@@ -9,10 +9,10 @@ def process_data(user_id: str) -> None:
     journald_send.send_compliant(
         f'Đang xử lý dữ liệu cho người dùng {user_id}',
         (
-            ('CODE_FILE', __file__),
-            ('CODE_LINE', '10'),
-            ('CODE_FUNC', 'process_data'),
-            ('USER_ID', user_id),
+            ('CODE_FILE', __file__.encode()),
+            ('CODE_LINE', b'10'),
+            ('CODE_FUNC', b'process_data'),
+            ('USER_ID', user_id.encode()),
         ),
     )
 

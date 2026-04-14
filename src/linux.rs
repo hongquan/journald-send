@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
-use memfd;
 use rustix::fd::{AsFd, BorrowedFd};
+use rustix::io::Errno;
 use rustix::io::IoSlice;
 use rustix::net;
 use rustix::net::{SendAncillaryBuffer, SendAncillaryMessage, SendFlags, sendmsg_addr};
@@ -90,8 +90,15 @@ pub fn send_to_journald(
 
     // Send the payload
     match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
-        Ok(_n) => Ok(()),
-        Err(rustix::io::Errno::MSGSIZE) => send_large_payload(socket.as_fd(), &addr, &buf),
+        Ok(n) => {
+            // Successfully sent via datagram
+            let _ = n; // Ignore bytes sent
+            Ok(())
+        }
+        Err(Errno::MSGSIZE) => {
+            // Payload too large for socket buffer, use memfd-based transmission
+            send_large_payload(socket.as_fd(), &addr, &buf)
+        }
         Err(e) => Err(io::Error::from(e)),
     }
 }
@@ -110,21 +117,18 @@ fn send_large_payload(
     // Write payload to memfd
     mfd.as_file().write_all(payload)?;
 
-    // Seal the memfd to prevent further modifications
-    mfd.add_seals(&[memfd::FileSeal::SealShrink, memfd::FileSeal::SealGrow])
-        .map_err(|e| io::Error::other(format!("memfd seal: {}", e)))?;
+    // Seal the memfd to prevent further modifications (per journald protocol)
+    // Fully seal: prevent shrink, grow, write, and further sealing
+    mfd.add_seals(&[
+        memfd::FileSeal::SealShrink,
+        memfd::FileSeal::SealGrow,
+        memfd::FileSeal::SealWrite,
+        memfd::FileSeal::SealSeal,
+    ])
+    .map_err(|e| io::Error::other(format!("memfd seal: {}", e)))?;
 
-    // Send the file descriptor
-    send_fd(socket, addr, &mfd)
-}
-
-fn send_fd(
-    socket: BorrowedFd<'_>,
-    addr: &net::SocketAddrUnix,
-    mfd: &memfd::Memfd,
-) -> io::Result<()> {
-    let dummy = [0u8; 1];
-    let iov = IoSlice::new(&dummy);
+    // Send empty datagram with file descriptor in ancillary message
+    let iov = IoSlice::new(&[]);
 
     let msg = SendAncillaryMessage::ScmRights(&[mfd.as_file().as_fd()]);
     let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
@@ -134,9 +138,8 @@ fn send_fd(
     }
 
     sendmsg_addr(socket, addr, &[iov], &mut cmsg_buffer, SendFlags::empty())
-        .map_err(io::Error::from)?;
-
-    Ok(())
+        .map_err(io::Error::from)
+        .map(|_| ())
 }
 
 /// Mangle a name into journald-compliant form.
@@ -197,15 +200,14 @@ fn put_value(buf: &mut Vec<u8>, value: &[u8]) {
 
 // This function will join each entry with `=` before sending to journald.
 // The keys must be uppercase, it will strip non-compliant entries.
-pub fn send_compliant_to_journald(message: &str, entries: &[(String, String)]) -> io::Result<()> {
+pub fn send_compliant_to_journald(message: &str, entries: &[(String, Vec<u8>)]) -> io::Result<()> {
     let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
     let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
     let mut buf = Vec::with_capacity(512);
 
     // MESSAGE field is always added first
-    buf.extend_from_slice(b"MESSAGE=");
-    buf.extend_from_slice(message.as_bytes());
-    buf.push(b'\n');
+    // Use length-encoded format if message contains newline
+    put_entry(&mut buf, "MESSAGE", message.as_bytes());
 
     for (key, value) in entries {
         // Validate that the key is uppercase, skip non-compliant entries
@@ -216,11 +218,7 @@ pub fn send_compliant_to_journald(message: &str, entries: &[(String, String)]) -
             continue;
         }
 
-        // Join each entry with `=`
-        buf.extend_from_slice(key.as_bytes());
-        buf.push(b'=');
-        buf.extend_from_slice(value.as_bytes());
-        buf.push(b'\n');
+        put_entry(&mut buf, key, value);
     }
 
     // If no valid entries remain, don't send anything
@@ -230,8 +228,32 @@ pub fn send_compliant_to_journald(message: &str, entries: &[(String, String)]) -
 
     // Send the payload
     match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
-        Ok(_n) => Ok(()),
-        Err(rustix::io::Errno::MSGSIZE) => send_large_payload(socket.as_fd(), &addr, &buf),
+        Ok(n) => {
+            let _ = n;
+            Ok(())
+        }
+        Err(Errno::MSGSIZE) => send_large_payload(socket.as_fd(), &addr, &buf),
         Err(e) => Err(io::Error::from(e)),
+    }
+}
+
+/// Write a key-value entry to `buf` following the journald native protocol.
+///
+/// Use `KEY=VALUE\n` format if `value` doesn't contain newline,
+/// otherwise use `KEY\n<LENGTH>\nVALUE\n` format.
+fn put_entry(buf: &mut Vec<u8>, key: &str, value: &[u8]) {
+    if value.contains(&b'\n') {
+        // Length-encoded format: KEY\n<LENGTH>\nVALUE\n
+        buf.extend_from_slice(key.as_bytes());
+        buf.push(b'\n');
+        buf.extend_from_slice(&(value.len() as u64).to_le_bytes());
+        buf.extend_from_slice(value);
+        buf.push(b'\n');
+    } else {
+        // Simple format: KEY=VALUE\n
+        buf.extend_from_slice(key.as_bytes());
+        buf.push(b'=');
+        buf.extend_from_slice(value);
+        buf.push(b'\n');
     }
 }

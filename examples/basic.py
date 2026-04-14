@@ -6,4 +6,4 @@ import journald_send
 from journald_send import Priority
 
 
-journald_send.send_compliant('Xin chào, journald! Đây là thư viện journald-send.', (('PRIORITY', str(Priority.INFO)),))
+journald_send.send_compliant('Xin chào, journald! Đây là thư viện journald-send.', (('PRIORITY', str(Priority)),))

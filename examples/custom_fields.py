@@ -9,9 +9,9 @@ from journald_send import Priority
 journald_send.send_compliant(
     'Có người đăng nhập',
     (
-        ('PRIORITY', str(Priority.NOTICE)),
-        ('USER_ID', '12345'),
-        ('USERNAME', 'Tèo'),
-        ('SESSION_ID', 'abc123'),
+        ('PRIORITY', str(Priority)),
+        ('USER_ID', b'12345'),
+        ('USERNAME', 'Tèo'.encode()),
+        ('SESSION_ID', b'abc123'),
     ),
 )

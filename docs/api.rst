@@ -11,16 +11,17 @@ Compliant send function
 
 .. autofunction:: journald_send.send_compliant
 
-The ``send_compliant`` function accepts a message and a sequence (list of tuple) of key-value tuples, allowing for repeated keys,
+The ``send_compliant`` function accepts a message and a sequence of key-value tuples, allowing for repeated keys,
 which is compliant with the journald native protocol. Keys are automatically sanitized and
 converted to uppercase. The ``MESSAGE`` key in entries is ignored (use the ``message`` parameter instead).
+Values can be ``str`` (encoded to UTF-8) or ``bytes``.
 
 .. code-block:: python
 
    import journald_send
    journald_send.send_compliant('Hello World', (
-       ('PRIORITY', '6'),
-       ('CUSTOM_FIELD', 'custom value'),
+       ('PRIORITY', b'6'),
+       ('CUSTOM_FIELD', b'custom value'),
    ))
 
 Standard fields

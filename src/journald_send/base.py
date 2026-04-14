@@ -116,7 +116,7 @@ def send(
 def send_compliant(
     message: str,
     /,
-    entries: Sequence[tuple[str, str]],
+    entries: Sequence[tuple[str, str | bytes]],
 ) -> None:
     """Send a compliant message to journald.
 
@@ -133,9 +133,13 @@ def send_compliant(
         import journald_send
         journald_send.send_compliant("Hello World", [
             ("PRIORITY", "6"),
-            ("MY_FIELD", "custom"),
+            ("MY_FIELD", b"custom"),
         ])
     """
+
     # Filter out MESSAGE from entries to avoid duplicates
-    filtered_entries = tuple((k, v) for k, v in entries if k.upper() != 'MESSAGE')
+    def to_bytes(v: str | bytes) -> bytes:
+        return v.encode('utf-8') if isinstance(v, str) else v
+
+    filtered_entries = tuple((k, to_bytes(v)) for k, v in entries if k.upper() != 'MESSAGE')
     _core.send_compliant(message, filtered_entries)

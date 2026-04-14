@@ -1,7 +1,6 @@
 """Test cases for journald-send module."""
 
 import subprocess
-import sys
 import time
 import uuid
 
@@ -210,7 +209,8 @@ def test_large_payload():
 
     This test is designed to trigger the send_large_payload path by sending
     a message that exceeds the Unix datagram size limit, forcing the fallback
-    to memfd-based transmission.
+    to memfd-based transmission. It also verifies that the large payload is
+    recorded correctly by journald.
     """
     out = subprocess.check_output(['sysctl', 'net.core.rmem_max'], text=True, timeout=1)
     # Expected format: 'net.core.rmem_max = 212992\n'
@@ -237,10 +237,31 @@ def test_large_payload():
     # Make payload exceed the guessed limit
     repeat = (rmem_max // max(1, len(base))) + 2
     poem = base * repeat
-    journald_send.send(poem)
+
+    unique_id = str(uuid.uuid4())
+    journald_send.send(poem, TEST_ID=unique_id)
+
+    # Verify the large payload is recorded by journald
+    time.sleep(0.1)
+    result = subprocess.run(
+        ['journalctl', '--user', '-n', '1', '-o', 'json'],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert result.returncode == 0
+    import json
+
+    for line in result.stdout.strip().split('\n'):
+        if not line.strip():
+            continue
+        entry = json.loads(line)
+        test_id = entry.get('TEST_ID') or entry.get('_TEST_ID', '')
+        if test_id == unique_id:
+            return  # Found
+    pytest.fail(f'Unique ID {unique_id} not found in journal')
 
 
-@pytest.mark.skipif(sys.platform != 'linux', reason='journald-send only works on Linux')
 def test_actual_journal_entry() -> None:
     """Test that messages actually reach the journal."""
 

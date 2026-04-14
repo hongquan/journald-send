@@ -14,8 +14,7 @@ mod linux;
 ///     **kwargs: Additional fields to include in the journal entry
 ///
 /// Example:
-///     >>> journald_send.send("Hello World", priority=6, MY_FIELD="custom")
-
+///     >>> journald_send.send('Hello World', priority=6, MY_FIELD='custom')
 // Export named constants for priorities so they are available from Python as
 // module-level constants (e.g., _core.PRIORITY_EMERGENCY). The Python wrapper
 // package (`src/journald_send/__init__.py`) can re-export nicer names.
@@ -92,11 +91,11 @@ fn send(
 pub fn send_compliant(
     py: Python<'_>,
     message: String,
-    entries: Vec<(String, String)>,
+    entries: Vec<(String, Vec<u8>)>,
 ) -> PyResult<()> {
     py.detach(|| {
         // Normalize keys and filter out MESSAGE
-        let normalized: Vec<(String, String)> = entries
+        let normalized: Vec<(String, Vec<u8>)> = entries
             .into_iter()
             .filter(|(key, _)| {
                 let mut buf = Vec::new();
@@ -123,7 +122,7 @@ pub fn send_compliant(
 #[cfg(not(target_os = "linux"))]
 #[pyfunction]
 #[pyo3(signature = (message, entries))]
-pub fn send_compliant(_message: String, _entries: Vec<(String, String)>) -> PyResult<()> {
+pub fn send_compliant(_message: String, _entries: Vec<(String, Vec<u8>)>) -> PyResult<()> {
     Err(pyo3::exceptions::PyOSError::new_err(
         "journald-send is only supported on Linux",
     ))
