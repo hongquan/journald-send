@@ -11,6 +11,12 @@ name = "_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.28.3"
+pyo3 = { version = "0.28.3", features = ["auto-initialize"] }
 rustix = { version = "1.1.4", default-features = false, features = ["net"] }
 memfd = "0.6.5"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

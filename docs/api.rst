@@ -11,18 +11,17 @@ Compliant send function
 
 .. autofunction:: journald_send.send_compliant
 
-The ``send_compliant`` function accepts a list of key-value tuples, allowing for repeated keys,
+The ``send_compliant`` function accepts a message and a sequence (list of tuple) of key-value tuples, allowing for repeated keys,
 which is compliant with the journald native protocol. Keys are automatically sanitized and
-converted to uppercase.
+converted to uppercase. The ``MESSAGE`` key in entries is ignored (use the ``message`` parameter instead).
 
 .. code-block:: python
 
    import journald_send
-   journald_send.send_compliant([
-       ("MESSAGE", "Hello World"),
-       ("PRIORITY", "6"),
-       ("CUSTOM_FIELD", "custom value"),
-   ])
+   journald_send.send_compliant('Hello World', (
+       ('PRIORITY', '6'),
+       ('CUSTOM_FIELD', 'custom value'),
+   ))
 
 Standard fields
 ~~~~~~~~~~~~~~~
@@ -45,8 +44,8 @@ Field names are automatically sanitized and converted to uppercase.
 
    import journald_send
    journald_send.send(
-       "Custom log entry",
-       CUSTOM_FIELD="value",
+       'Custom log entry',
+       CUSTOM_FIELD='value',
        ANOTHER_FIELD=123
    )
 
@@ -65,7 +64,7 @@ Priority levels can be set using the ``priority`` parameter with the :class:`~jo
    import journald_send
    from journald_send import Priority
 
-   journald_send.send("Error occurred", priority=Priority.ERROR)
+   journald_send.send('Error occurred', priority=Priority.ERROR)
 
 
 Logging handler

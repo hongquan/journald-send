@@ -113,22 +113,29 @@ def send(
 # A well-written logging client library thus will not use a plain dictionary for accepting structured log metadata,
 # but rather a data structure that allows non-unique keys, for example an array,
 # or a dictionary that optionally maps to a set of values instead of a single value.
-def send_compliant(entries: Sequence[tuple[str, str]]) -> None:
+def send_compliant(
+    message: str,
+    /,
+    entries: Sequence[tuple[str, str]],
+) -> None:
     """Send a compliant message to journald.
 
-    This function accepts a list of key-value tuples, allowing for repeated keys,
+    This function accepts a message and a list of key-value tuples, allowing for repeated keys,
     which is compliant with the journald native protocol.
 
+    :param message: The log message (MESSAGE field). Required.
     :param entries: A list of (key, value) tuples. Keys will be normalized to uppercase.
+        The ``MESSAGE`` key, if present, is ignored (use the ``message`` parameter instead).
     :raises OSError: If not on Linux or if sending to journald fails.
 
     Example::
 
         import journald_send
-        journald_send.send_compliant([
-            ("MESSAGE", "Hello World"),
+        journald_send.send_compliant("Hello World", [
             ("PRIORITY", "6"),
             ("MY_FIELD", "custom"),
         ])
     """
-    _core.send_compliant(entries)
+    # Filter out MESSAGE from entries to avoid duplicates
+    filtered_entries = tuple((k, v) for k, v in entries if k.upper() != 'MESSAGE')
+    _core.send_compliant(message, filtered_entries)

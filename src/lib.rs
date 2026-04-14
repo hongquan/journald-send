@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PySequence};
+use pyo3::types::PyDict;
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -88,29 +88,30 @@ fn send(
 // `send_compliant_to_journald` function.
 #[cfg(target_os = "linux")]
 #[pyfunction]
-#[pyo3(signature = (entries))]
-pub fn send_compliant(py: Python<'_>, entries: &Bound<'_, PySequence>) -> PyResult<()> {
-    // Convert Python sequence to Vec<(String, String)>
-    let mut normalized = Vec::new();
-    let len = entries.len()?;
-    for i in 0..len {
-        let item = entries.get_item(i)?;
-        if let Ok(tuple) = item.downcast::<pyo3::types::PyTuple>() {
-            if tuple.len() == 2 {
-                let key = tuple.get_item(0)?.extract::<String>()?;
-                let value = tuple.get_item(1)?.extract::<String>()?;
-
-                // Normalize key using the same sanitization logic as the main send function
+#[pyo3(signature = (message, entries))]
+pub fn send_compliant(
+    py: Python<'_>,
+    message: String,
+    entries: Vec<(String, String)>,
+) -> PyResult<()> {
+    py.detach(|| {
+        // Normalize keys and filter out MESSAGE
+        let normalized: Vec<(String, String)> = entries
+            .into_iter()
+            .filter(|(key, _)| {
+                let mut buf = Vec::new();
+                linux::sanitize_name(key, &mut buf);
+                let sanitized_key = String::from_utf8(buf).unwrap_or_else(|_| key.to_uppercase());
+                sanitized_key != "MESSAGE"
+            })
+            .map(|(key, value)| {
                 let mut buf = Vec::new();
                 linux::sanitize_name(&key, &mut buf);
                 let sanitized_key = String::from_utf8(buf).unwrap_or_else(|_| key.to_uppercase());
-                normalized.push((sanitized_key, value));
-            }
-        }
-    }
-
-    py.detach(|| {
-        linux::send_compliant_to_journald(&normalized).map_err(|e| {
+                (sanitized_key, value)
+            })
+            .collect();
+        linux::send_compliant_to_journald(&message, &normalized).map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyIOError, _>(format!(
                 "Failed to send to journald: {}",
                 e
@@ -121,8 +122,8 @@ pub fn send_compliant(py: Python<'_>, entries: &Bound<'_, PySequence>) -> PyResu
 
 #[cfg(not(target_os = "linux"))]
 #[pyfunction]
-#[pyo3(signature = (entries))]
-pub fn send_compliant(_entries: &Bound<'_, PySequence>) -> PyResult<()> {
+#[pyo3(signature = (message, entries))]
+pub fn send_compliant(_message: String, _entries: Vec<(String, String)>) -> PyResult<()> {
     Err(pyo3::exceptions::PyOSError::new_err(
         "journald-send is only supported on Linux",
     ))

@@ -141,7 +141,7 @@ fn send_fd(
 
 /// Mangle a name into journald-compliant form.
 pub fn sanitize_name(name: &str, buf: &mut Vec<u8>) {
-    // Copied from tracing-jounrald.
+    // Copied from tracing-journald.
     buf.extend(
         name.bytes()
             .map(|c| if c == b'.' { b'_' } else { c })
@@ -161,7 +161,7 @@ pub fn sanitize_name(name: &str, buf: &mut Vec<u8>) {
 /// not delete from `buf`, but may append arbitrary data.  This function then determines the length
 /// of the data written and adds it in the appropriate place in `buf`.
 fn put_field_length_encoded(buf: &mut Vec<u8>, name: &str, write_value: impl FnOnce(&mut Vec<u8>)) {
-    // Copied from tracing-jounrald.
+    // Copied from tracing-journald.
     sanitize_name(name, buf);
     buf.push(b'\n');
     buf.extend_from_slice(&[0; 8]); // Length tag, to be populated
@@ -197,10 +197,15 @@ fn put_value(buf: &mut Vec<u8>, value: &[u8]) {
 
 // This function will join each entry with `=` before sending to journald.
 // The keys must be uppercase, it will strip non-compliant entries.
-pub fn send_compliant_to_journald(entries: &[(String, String)]) -> io::Result<()> {
+pub fn send_compliant_to_journald(message: &str, entries: &[(String, String)]) -> io::Result<()> {
     let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
     let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
     let mut buf = Vec::with_capacity(512);
+
+    // MESSAGE field is always added first
+    buf.extend_from_slice(b"MESSAGE=");
+    buf.extend_from_slice(message.as_bytes());
+    buf.push(b'\n');
 
     for (key, value) in entries {
         // Validate that the key is uppercase, skip non-compliant entries
