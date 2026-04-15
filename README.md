@@ -41,7 +41,7 @@ Import and use the send function:
 
 ```python
 import journald_send
-journald_send.send("Hello, journald!")
+journald_send.send('Hello, journald!')
 ```
 
 Or use the `JournalHandler` for Python logging framework integration:
@@ -50,9 +50,9 @@ Or use the `JournalHandler` for Python logging framework integration:
 import logging
 from journald_send.log_handler import JournalHandler
 
-log = logging.getLogger("my-app")
-log.addHandler(JournalHandler(SYSLOG_IDENTIFIER="my-app"))
-log.warning("Something happened")
+log = logging.getLogger('my-app')
+log.addHandler(JournalHandler(SYSLOG_IDENTIFIER='my-app'))
+log.warning('Something happened')
 ```
 
 ## 📁 Examples

@@ -18,7 +18,7 @@ _PRI_DEBUG = _core._PRI_DEBUG
 
 
 class Priority(IntEnum):
-    """Integer enum representing journald priority levels backed by the native constants."""
+    """Integer enum representing journald priority levels."""
 
     EMERGENCY = _PRI_EMERGENCY
     ALERT = _PRI_ALERT
@@ -42,11 +42,11 @@ def send(
 ) -> None:
     """Send a message to journald.
 
-    :param message: The log message (MESSAGE field).
+    :param message: The log message (``MESSAGE`` field).
     :param priority: Log priority level (0–7).
-    :param code_file: Source file (CODE_FILE field).
-    :param code_line: Source line (CODE_LINE field).
-    :param code_func: Function name (CODE_FUNC field).
+    :param code_file: Source file (``CODE_FILE`` field).
+    :param code_line: Source line (``CODE_LINE`` field).
+    :param code_func: Function name (``CODE_FUNC`` field).
     :param kwargs: Additional fields to include in the journal entry.
         Field names are uppercased and sanitized per journald conventions.
         Values are converted to strings.  ``CODE_LINE`` must be an integer,
@@ -65,7 +65,9 @@ def send(
     Example::
 
         import journald_send
-        journald_send.send("Hello World", priority=6, MY_FIELD="custom")
+        from journald_send import Priority
+
+        journald_send.send('Hello World', priority=Priority.INFO, MY_FIELD='custom')
     """
 
     # Validate that the explicit priority (IntEnum) is in range
@@ -123,7 +125,7 @@ def send_compliant(
     This function accepts a message and a list of key-value tuples, allowing for repeated keys,
     which is compliant with the journald native protocol.
 
-    :param message: The log message (MESSAGE field). Required.
+    :param message: The log message (``MESSAGE`` field). Required.
     :param entries: A list of (key, value) tuples. Keys will be normalized to uppercase.
         The ``MESSAGE`` key, if present, is ignored (use the ``message`` parameter instead).
     :raises OSError: If not on Linux or if sending to journald fails.
@@ -131,9 +133,9 @@ def send_compliant(
     Example::
 
         import journald_send
-        journald_send.send_compliant("Hello World", [
-            ("PRIORITY", "6"),
-            ("MY_FIELD", b"custom"),
+        journald_send.send_compliant('Hello World', [
+            ('PRIORITY', '6'),
+            ('MY_FIELD', b'custom'),
         ])
     """
 

@@ -13,7 +13,7 @@ from . import Priority, send as _send
 class JournalHandler(_logging.Handler):
     """Handler for the Python standard logging framework.
 
-    It is model after systemd-python's ``JournalHandler``,
+    It is model after `systemd-python <https://github.com/systemd/python-systemd>`_'s ``JournalHandler``,
     but using our :func:`journald_send.send` to forward the logs to ``journald``.
 
     Example usage::
@@ -22,12 +22,12 @@ class JournalHandler(_logging.Handler):
         from journald_send.log_handler import JournalHandler
 
         log = logging.getLogger("my-app")
-        log.addHandler(JournalHandler(SYSLOG_IDENTIFIER="my-app"))
-        log.warning("Something happened: %s", "detail")
+        log.addHandler(JournalHandler(SYSLOG_IDENTIFIER='my-app'))
+        log.warning('Something happened: %s', 'detail')
 
     Fields attached to all messages can be specified as keyword arguments::
 
-        JournalHandler(SYSLOG_IDENTIFIER="my-cool-app")
+        JournalHandler(SYSLOG_IDENTIFIER='my-cool-app')
 
     The following journal fields are automatically included:
     ``MESSAGE``, ``PRIORITY``, ``LOGGER``, ``THREAD_NAME``,
@@ -38,7 +38,7 @@ class JournalHandler(_logging.Handler):
         import uuid
 
         mid = uuid.UUID("0123456789ABCDEF0123456789ABCDEF")
-        log.warning("Message with ID", extra={"MESSAGE_ID": mid})
+        log.warning('Message with ID', extra={'MESSAGE_ID': mid})
     """
 
     def __init__(
