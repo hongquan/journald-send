@@ -62,7 +62,8 @@ fn send(
                 "Failed to send to journald: {}",
                 e
             ))
-        })
+        })?;
+        Ok(())
     })
 }
 
@@ -115,7 +116,8 @@ pub fn send_compliant(
                 "Failed to send to journald: {}",
                 e
             ))
-        })
+        })?;
+        Ok(())
     })
 }
 

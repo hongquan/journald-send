@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use rustix::fd::{AsFd, BorrowedFd};
+use rustix::fd::{AsFd, BorrowedFd, OwnedFd};
 use rustix::io::Errno;
 use rustix::io::IoSlice;
 use rustix::net;
@@ -9,6 +9,26 @@ use std::mem::MaybeUninit;
 
 const JOURNALD_PATH: &str = "/run/systemd/journal/socket";
 
+/// Create a UNIX datagram socket targeting journald
+fn create_journald_socket() -> io::Result<(net::SocketAddrUnix, OwnedFd)> {
+    let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
+    let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
+    Ok((addr, socket))
+}
+
+/// Send a payload to journald, handling both small and large payloads
+fn send_journald_payload(
+    socket: OwnedFd,
+    addr: &net::SocketAddrUnix,
+    buf: &[u8],
+) -> io::Result<usize> {
+    match net::sendto(&socket, buf, net::SendFlags::empty(), addr) {
+        Ok(n) => Ok(n),
+        Err(Errno::MSGSIZE) => send_large_payload(socket.as_fd(), addr, buf),
+        Err(e) => Err(io::Error::from(e)),
+    }
+}
+
 pub fn send_to_journald(
     message: &str,
     priority: Option<u8>,
@@ -16,7 +36,7 @@ pub fn send_to_journald(
     code_line: Option<u64>,
     code_func: Option<&str>,
     extra_fields: &[(String, String)],
-) -> io::Result<()> {
+) -> io::Result<usize> {
     // --- Extract main fields from extra_fields for fallback when explicit params are None ---
     let mut extra_priority: Option<u8> = None;
     let mut extra_code_file: Option<String> = None;
@@ -56,8 +76,7 @@ pub fn send_to_journald(
     let final_code_line = code_line.or(extra_code_line);
     let final_code_func = code_func.or(extra_code_func.as_deref());
 
-    let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
-    let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
+    let (addr, socket) = create_journald_socket()?;
     let mut buf = Vec::with_capacity(512);
 
     // Add MESSAGE field (safe - message doesn't contain newlines)
@@ -89,30 +108,17 @@ pub fn send_to_journald(
     }
 
     // Send the payload
-    match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
-        Ok(n) => {
-            // Successfully sent via datagram
-            let _ = n; // Ignore bytes sent
-            Ok(())
-        }
-        Err(Errno::MSGSIZE) => {
-            // Payload too large for socket buffer, use memfd-based transmission
-            send_large_payload(socket.as_fd(), &addr, &buf)
-        }
-        Err(e) => Err(io::Error::from(e)),
-    }
+    send_journald_payload(socket, &addr, &buf)
 }
 
 fn send_large_payload(
     socket: BorrowedFd<'_>,
     addr: &net::SocketAddrUnix,
     payload: &[u8],
-) -> io::Result<()> {
+) -> io::Result<usize> {
     // Create a sealable memfd
     let opts = memfd::MemfdOptions::default().allow_sealing(true);
-    let mfd = opts
-        .create("journald-send")
-        .map_err(|e| io::Error::other(format!("memfd: {}", e)))?;
+    let mfd = opts.create("journald-send").map_err(peel_memfd_error)?;
 
     // Write payload to memfd
     mfd.as_file().write_all(payload)?;
@@ -125,21 +131,30 @@ fn send_large_payload(
         memfd::FileSeal::SealWrite,
         memfd::FileSeal::SealSeal,
     ])
-    .map_err(|e| io::Error::other(format!("memfd seal: {}", e)))?;
+    .map_err(peel_memfd_error)?;
 
     // Send empty datagram with file descriptor in ancillary message
     let iov = IoSlice::new(&[]);
 
     let msg = SendAncillaryMessage::ScmRights(&[mfd.as_file().as_fd()]);
     let mut space = [MaybeUninit::uninit(); rustix::cmsg_space!(ScmRights(1))];
-    let mut cmsg_buffer = SendAncillaryBuffer::new(space.as_mut_slice());
-    if !cmsg_buffer.push(msg) {
-        return Err(io::Error::other("failed to push cmsg"));
+    let mut ancillary_buffer = SendAncillaryBuffer::new(space.as_mut_slice());
+    if !ancillary_buffer.push(msg) {
+        let err = io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Failed to add an ancillary message to the buffer.",
+        );
+        return Err(err);
     }
 
-    sendmsg_addr(socket, addr, &[iov], &mut cmsg_buffer, SendFlags::empty())
-        .map_err(io::Error::from)
-        .map(|_| ())
+    sendmsg_addr(
+        socket,
+        addr,
+        &[iov],
+        &mut ancillary_buffer,
+        SendFlags::empty(),
+    )
+    .map_err(io::Error::from)
 }
 
 /// Mangle a name into journald-compliant form.
@@ -175,34 +190,34 @@ fn put_field_length_encoded(buf: &mut Vec<u8>, name: &str, write_value: impl FnO
     buf.push(b'\n');
 }
 
-/// Append arbitrary data with a well-formed name and value.
-///
-/// `value` must not contain an internal newline, because this function writes
-/// `value` in the new-line separated format.
-///
-/// For a "newline-safe" variant, see `put_field_length_encoded`.
-fn put_field_wellformed(buf: &mut Vec<u8>, name: &str, value: &[u8]) {
-    buf.extend_from_slice(name.as_bytes());
-    buf.push(b'\n');
-    put_value(buf, value);
-}
-
 /// Write the value portion of a key-value pair, in newline separated format.
 ///
 /// `value` must not contain an internal newline.
-///
-/// For a "newline-safe" variant, see `put_field_length_encoded`.
 fn put_value(buf: &mut Vec<u8>, value: &[u8]) {
     buf.extend_from_slice(&(value.len() as u64).to_le_bytes());
     buf.extend_from_slice(value);
     buf.push(b'\n');
 }
 
+/// Append arbitrary data with a well-formed name and value.
+///
+/// `value` must not contain an internal newline, because this function writes
+/// `value` in the new-line separated format.
+///
+/// For a "newline-safe" variant, see `put_entry`.
+fn put_field_wellformed(buf: &mut Vec<u8>, name: &str, value: &[u8]) {
+    buf.extend_from_slice(name.as_bytes());
+    buf.push(b'\n');
+    put_value(buf, value);
+}
+
 // This function will join each entry with `=` before sending to journald.
 // The keys must be uppercase, it will strip non-compliant entries.
-pub fn send_compliant_to_journald(message: &str, entries: &[(String, Vec<u8>)]) -> io::Result<()> {
-    let addr = net::SocketAddrUnix::new(JOURNALD_PATH)?;
-    let socket = net::socket(net::AddressFamily::UNIX, net::SocketType::DGRAM, None)?;
+pub fn send_compliant_to_journald(
+    message: &str,
+    entries: &[(String, Vec<u8>)],
+) -> io::Result<usize> {
+    let (addr, socket) = create_journald_socket()?;
     let mut buf = Vec::with_capacity(512);
 
     // MESSAGE field is always added first
@@ -223,18 +238,11 @@ pub fn send_compliant_to_journald(message: &str, entries: &[(String, Vec<u8>)]) 
 
     // If no valid entries remain, don't send anything
     if buf.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
 
     // Send the payload
-    match net::sendto(&socket, &buf, net::SendFlags::empty(), &addr) {
-        Ok(n) => {
-            let _ = n;
-            Ok(())
-        }
-        Err(Errno::MSGSIZE) => send_large_payload(socket.as_fd(), &addr, &buf),
-        Err(e) => Err(io::Error::from(e)),
-    }
+    send_journald_payload(socket, &addr, &buf)
 }
 
 /// Write a key-value entry to `buf` following the journald native protocol.
@@ -243,17 +251,21 @@ pub fn send_compliant_to_journald(message: &str, entries: &[(String, Vec<u8>)]) 
 /// otherwise use `KEY\n<LENGTH>\nVALUE\n` format.
 fn put_entry(buf: &mut Vec<u8>, key: &str, value: &[u8]) {
     if value.contains(&b'\n') {
-        // Length-encoded format: KEY\n<LENGTH>\nVALUE\n
-        buf.extend_from_slice(key.as_bytes());
-        buf.push(b'\n');
-        buf.extend_from_slice(&(value.len() as u64).to_le_bytes());
-        buf.extend_from_slice(value);
-        buf.push(b'\n');
+        put_field_length_encoded(buf, key, |buf| {
+            buf.extend_from_slice(value);
+        });
     } else {
-        // Simple format: KEY=VALUE\n
         buf.extend_from_slice(key.as_bytes());
         buf.push(b'=');
         buf.extend_from_slice(value);
         buf.push(b'\n');
+    }
+}
+
+fn peel_memfd_error(err: memfd::Error) -> io::Error {
+    match err {
+        memfd::Error::Create(e) => e,
+        memfd::Error::AddSeals(e) => e,
+        memfd::Error::GetSeals(e) => e,
     }
 }
