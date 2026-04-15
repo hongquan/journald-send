@@ -1,8 +1,8 @@
 API Reference
 =============
 
-Core send function
-------------------
+Standard send function
+----------------------
 
 .. autofunction:: journald_send.send
 
@@ -15,6 +15,8 @@ The ``send_compliant`` function accepts a message and a sequence of key-value tu
 which is compliant with the journald native protocol. Keys are automatically sanitized and
 converted to uppercase. The ``MESSAGE`` key in entries is ignored (use the ``message`` parameter instead).
 Values can be ``str`` (encoded to UTF-8) or ``bytes``.
+
+This function may differ from common Python usage patterns.
 
 .. code-block:: python
 
