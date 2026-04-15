@@ -5,14 +5,14 @@
 [![ReadTheDocs](https://readthedocs.org/projects/journald-send/badge/?version=latest)](https://journald-send.readthedocs.io?badge=latest)
 [![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 
-A lightweight Python library to send messages to [journald] (Linux system logging) using its native protocol.
+A thin Python library to write messages to [journald] (Linux system logging) using its native protocol.
 
 ## 💡 Features
 
-- Simple function to log messages directly to [journald] using its native protocol.
+- Simple functions to log messages directly to [journald] using its [native protocol].
 - Best for structured logging.
 - Pure-Rust (not depending on [libc], although PyO3 may include it when linking with CPython).
-- Not depend on C-based `libsystemd` (`journald-send` only writes to journald, does not read or interact with [systemd]).
+- Not depend on C-based `libsystemd` (as `journald-send` focuses on writing to journald, not reading nor interacting with [systemd]).
 
 ## 🤔 Motivation
 
@@ -99,13 +99,14 @@ uv run pytest
 just docs
 ```
 
-## 🙏 Credits
+## 🙏 Acknowledgement
 
-This project learned from [tracing-journald] crate for how to talk with [journald] at low level.
+This project learned from [tracing-journald] library for how to talk with [journald] at low level.
 
 [journald]: https://wiki.archlinux.org/title/Systemd/Journal
 [libc]: https://crates.io/crates/libc
 [memfd]: https://crates.io/crates/memfd
+[native protocol]: https://systemd.io/JOURNAL_NATIVE_PROTOCOL/
 [rustix]: https://crates.io/crates/rustix
 [systemd]: https://systemd.io/
 [systemd-python]: https://pypi.org/project/systemd-python/
