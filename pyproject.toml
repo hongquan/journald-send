@@ -33,19 +33,19 @@ build-backend = "maturin"
 
 [dependency-groups]
 dev = [
-    "maturin>=1.13.1",
+    "maturin>=1.14.1",
 ]
 docs = [
     "sphinx>=9.1.0",
     "furo",
     "sphinx-autobuild",
-    "myst-parser>=5.0.0",
+    "myst-parser>=5.1.0",
 ]
 lint = [
-    "ruff>=0.15.10",
+    "ruff>=0.16.2",
 ]
 test = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.1",
 ]
 
 
