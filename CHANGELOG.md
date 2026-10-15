@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 This file follows the "common changelog" format: https://common-changelog.org/#2-format
 
 
+## [0.4.0] - 2026-10-15
+
+### Added
+
+- Support Python 3.15/
+- Update dependencies.
+
 ## [0.3.0] - 2026-04-12
 
 ### Fixed
@@ -31,6 +38,7 @@ This file follows the "common changelog" format: https://common-changelog.org/#2
 - Examples demonstrating Priority usage and custom fields.
 - Instructions to build the native extension into the project's virtualenv via `maturin develop` and run tests with `pytest`.
 
+[0.4.0]: https://github.com/hongquan/journald-send/releases/tag/v0.4.0
 [0.3.0]: https://github.com/hongquan/journald-send/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hongquan/journald-send/releases/tag/v0.2.0
 [0.1.0]: https://github.com/hongquan/journald-send/releases/tag/v0.1.0
